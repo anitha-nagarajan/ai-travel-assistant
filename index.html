@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Travel Assistant ✈️</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 16px;
+      color: #fff;
+    }
+
+    h1 { font-size: 2rem; margin-bottom: 6px; text-align: center; }
+
+    .subtitle {
+      font-size: 0.95rem;
+      color: #a0c4d8;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    #api-section { width: 100%; max-width: 700px; margin-bottom: 16px; }
+
+    #api-section input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid #3a6186;
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      font-size: 0.9rem;
+    }
+
+    #api-section input::placeholder { color: #7a9ab0; }
+
+    .suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      width: 100%;
+      max-width: 700px;
+      margin-bottom: 16px;
+    }
+
+    .chip {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #d0e8f7;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .chip:hover { background: rgba(255,255,255,0.2); }
+
+    #chat-box {
+      width: 100%;
+      max-width: 700px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      padding: 20px;
+      height: 480px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .message {
+      padding: 12px 16px;
+      border-radius: 12px;
+      max-width: 85%;
+      line-height: 1.6;
+      font-size: 0.95rem;
+      white-space: pre-wrap;
+    }
+
+    .user {
+      background: #1a73e8;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+
+    .assistant {
+      background: rgba(255,255,255,0.1);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+
+    .typing {
+      background: rgba(255,255,255,0.08);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+      font-style: italic;
+      color: #a0c4d8;
+      font-size: 0.88rem;
+    }
+
+    #input-area {
+      display: flex;
+      width: 100%;
+      max-width: 700px;
+      gap: 10px;
+    }
+
+    #user-input {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1px solid #3a6186;
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    #user-input::placeholder { color: #7a9ab0; }
+
+    #send-btn {
+      padding: 12px 22px;
+      background: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #send-btn:hover { background: #1558b0; }
+    #send-btn:disabled { background: #555; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+  <h1>✈️ AI Travel Assistant</h1>
+  <p class="subtitle">Tell me your trip details — I'll search live flights and find the best deal!</p>
+
+  <div id="api-section">
+    <input type="password" id="api-key" placeholder="🔑 Paste your Claude API key here to start..." />
+  </div>
+
+  <div class="suggestions">
+    <span class="chip" onclick="fillInput('Cheapest flights from Amsterdam to Bali, 2 adults, 15 to 29 August, economy class')">🌴 Amsterdam → Bali in August</span>
+    <span class="chip" onclick="fillInput('Cheapest warm destination for 2 adults and 2 children aged 8 and 10, minimum 15 degrees, 8 to 14 days, travelling between 19 December and 2 January, flying from Amsterdam')">🎄 Warm family trip in December</span>
+    <span class="chip" onclick="fillInput('Best budget flights from Amsterdam to New York next month, 1 adult')">🗽 Amsterdam → New York</span>
+  </div>
+
+  <div id="chat-box">
+    <div class="message assistant">👋 Hi! I'm your AI Travel Assistant powered by real-time web search.
+
+Tell me your trip details and I'll find and compare the best flight options for you! For example:
+
+- "Flights from Amsterdam to Bali, 2 adults, 10–24 August, economy"
+- "Cheapest warm destination for a family of 4, mid-December, flying from Amsterdam"
+- "Compare business class flights to Tokyo in October"
+
+The more details you give me, the better I can help! ✈️</div>
+  </div>
+
+  <div id="input-area">
+    <input type="text" id="user-input"
+      placeholder="Describe your trip or ask any travel question..."
+      onkeydown="if(event.key==='Enter') sendMessage()" />
+    <button id="send-btn" onclick="sendMessage()">Send ✈️</button>
+  </div>
+
+  <script>
+    let conversationHistory = [];
+
+    const systemPrompt = `You are an expert AI Travel Assistant with access to real-time web search.
+
+Your main job is to help users find the best flights and travel options. When a user asks about flights or destinations, you MUST use your web search tool to find current, real-time flight data before responding.
+
+WHEN SEARCHING FOR FLIGHTS:
+- Search for actual current flight prices on routes mentioned
+- Search multiple airlines and compare options
+- Look for prices on Google Flights, Skyscanner, Kayak, and airline websites
+- Always find at least 2-3 different options to compare
+
+WHEN PRESENTING RESULTS:
+- Show a clear comparison of options (airline, duration, stops, price per person)
+- Clearly mark the best option with ⭐
+- Explain WHY it is the best option (price vs. travel time vs. convenience)
+- Always mention where to book (Skyscanner, Google Flights, etc.)
+- Show total price for all passengers, not just per person
+
+WHEN SEARCHING FOR DESTINATIONS:
+- Search for destinations matching ALL the user's criteria (temperature, budget, duration)
+- Find flight prices to the top matching destinations
+- Compare total costs including any family discounts for children
+- Factor in weather data for the travel period
+
+IF INFORMATION IS MISSING, ask for:
+- Departure airport or city
+- Travel dates or period
+- Number of passengers (and children's ages if relevant)
+- Budget preference (economy / business / first class)
+
+Always be friendly, concise and end with a clear recommendation.`;
+
+    function fillInput(text) {
+      document.getElementById('user-input').value = text;
+      document.getElementById('user-input').focus();
+    }
+
+    async function sendMessage() {
+      const apiKey = document.getElementById('api-key').value.trim();
+      const userInput = document.getElementById('user-input').value.trim();
+      const chatBox = document.getElementById('chat-box');
+      const sendBtn = document.getElementById('send-btn');
+
+      if (!apiKey) {
+        alert('Please paste your Claude API key first!');
+        return;
+      }
+      if (!userInput) return;
+
+      // Show user message
+      const userMsg = document.createElement('div');
+      userMsg.className = 'message user';
+      userMsg.textContent = userInput;
+      chatBox.appendChild(userMsg);
+      document.getElementById('user-input').value = '';
+      sendBtn.disabled = true;
+
+      // Add to conversation history
+      conversationHistory.push({ role: 'user', content: userInput });
+
+      // Show typing indicator
+      const typing = document.createElement('div');
+      typing.className = 'message typing';
+      typing.textContent = '🔍 Searching live flight data — this may take a few seconds...';
+      chatBox.appendChild(typing);
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2048,
+            system: systemPrompt,
+            tools: [{ type: "web_search_20250305", name: "web_search" }],
+            messages: conversationHistory
+          })
+        });
+
+        const data = await response.json();
+        chatBox.removeChild(typing);
+
+        // Extract text blocks from response
+        const reply = data.content
+          .filter(block => block.type === 'text')
+          .map(block => block.text)
+          .join('\n');
+
+        const finalReply = reply || 'Sorry, I could not get a response. Please try again.';
+
+        // Add assistant response to history
+        conversationHistory.push({ role: 'assistant', content: data.content });
+
+        // Display assistant message
+        const assistantMsg = document.createElement('div');
+        assistantMsg.className = 'message assistant';
+        assistantMsg.textContent = finalReply;
+        chatBox.appendChild(assistantMsg);
+
+      } catch (error) {
+        chatBox.removeChild(typing);
+        const errMsg = document.createElement('div');
+        errMsg.className = 'message assistant';
+        errMsg.textContent = '⚠️ Error: Could not connect. Please check your API key and try again.';
+        chatBox.appendChild(errMsg);
+      }
+
+      sendBtn.disabled = false;
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+  </script>
+
+</body>
+</html>
