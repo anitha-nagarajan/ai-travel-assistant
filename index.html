@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AI Travel Assistant ✈️</title>
+  <title>AI Travel Agent ✈️</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -18,7 +18,11 @@
       color: #fff;
     }
 
-    h1 { font-size: 2rem; margin-bottom: 6px; text-align: center; }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 6px;
+      text-align: center;
+    }
 
     .subtitle {
       font-size: 0.95rem;
@@ -27,7 +31,12 @@
       text-align: center;
     }
 
-    #api-section { width: 100%; max-width: 700px; margin-bottom: 16px; }
+    /* ── API key input ── */
+    #api-section {
+      width: 100%;
+      max-width: 740px;
+      margin-bottom: 16px;
+    }
 
     #api-section input {
       width: 100%;
@@ -41,77 +50,86 @@
 
     #api-section input::placeholder { color: #7a9ab0; }
 
-    .suggestions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      width: 100%;
-      max-width: 700px;
-      margin-bottom: 16px;
-    }
-
-    .chip {
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.2);
-      color: #d0e8f7;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 0.82rem;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .chip:hover { background: rgba(255,255,255,0.2); }
-
+    /* ── Chat window ── */
     #chat-box {
       width: 100%;
-      max-width: 700px;
-      background: rgba(255,255,255,0.06);
+      max-width: 740px;
+      background: rgba(255,255,255,0.05);
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 16px;
       padding: 20px;
-      height: 480px;
+      height: 520px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
       margin-bottom: 16px;
     }
 
+    /* ── Message bubbles ── */
     .message {
       padding: 12px 16px;
       border-radius: 12px;
-      max-width: 85%;
+      max-width: 88%;
       line-height: 1.6;
       font-size: 0.95rem;
       white-space: pre-wrap;
     }
 
-    .user {
+    /* User messages — blue, right aligned */
+    .message.user {
       background: #1a73e8;
       align-self: flex-end;
       border-bottom-right-radius: 4px;
     }
 
-    .assistant {
+    /* Agent replies — grey, left aligned */
+    .message.assistant {
       background: rgba(255,255,255,0.1);
       align-self: flex-start;
       border-bottom-left-radius: 4px;
     }
 
-    .typing {
-      background: rgba(255,255,255,0.08);
+    /* Thinking indicator — animated dots */
+    .message.thinking {
+      background: rgba(255,255,255,0.07);
       align-self: flex-start;
-      border-bottom-left-radius: 4px;
-      font-style: italic;
       color: #a0c4d8;
+      font-style: italic;
       font-size: 0.88rem;
+      border-bottom-left-radius: 4px;
     }
 
+    /* Live update messages — compact progress lines */
+    .live-update {
+      align-self: flex-start;
+      font-size: 0.82rem;
+      color: #a0c4d8;
+      padding: 5px 12px;
+      background: rgba(255,255,255,0.05);
+      border-left: 3px solid #1a73e8;
+      border-radius: 0 8px 8px 0;
+      max-width: 90%;
+      line-height: 1.4;
+    }
+
+    /* Completion updates — slightly brighter */
+    .live-update.done {
+      color: #7dd4a8;
+      border-left-color: #2ecc71;
+    }
+
+    /* Error updates */
+    .live-update.error {
+      color: #f4a261;
+      border-left-color: #e07b39;
+    }
+
+    /* ── Input bar ── */
     #input-area {
       display: flex;
       width: 100%;
-      max-width: 700px;
+      max-width: 740px;
       gap: 10px;
     }
 
@@ -128,6 +146,11 @@
 
     #user-input::placeholder { color: #7a9ab0; }
 
+    #user-input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     #send-btn {
       padding: 12px 22px;
       background: #1a73e8;
@@ -137,163 +160,200 @@
       font-size: 1rem;
       cursor: pointer;
       transition: background 0.2s;
+      white-space: nowrap;
     }
 
-    #send-btn:hover { background: #1558b0; }
-    #send-btn:disabled { background: #555; cursor: not-allowed; }
+    #send-btn:hover:not(:disabled) { background: #1558b0; }
+
+    #send-btn:disabled {
+      background: #3a5068;
+      cursor: not-allowed;
+    }
+
+    /* ── Scrollbar styling ── */
+    #chat-box::-webkit-scrollbar { width: 6px; }
+    #chat-box::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.15);
+      border-radius: 3px;
+    }
   </style>
 </head>
 <body>
 
-  <h1>✈️ AI Travel Assistant</h1>
-  <p class="subtitle">Tell me your trip details — I'll search live flights and find the best deal!</p>
+  <h1>✈️ AI Travel Agent</h1>
+  <p class="subtitle">
+    Tell me about your trip — I'll search destinations, compare flights and find the best deal!
+  </p>
 
   <div id="api-section">
-    <input type="password" id="api-key" placeholder="🔑 Paste your Claude API key here to start..." />
+    <input
+      type="password"
+      id="api-key"
+      placeholder="🔑 Paste your Claude API key here to start..."
+    />
   </div>
 
-  <div class="suggestions">
-    <span class="chip" onclick="fillInput('Cheapest flights from Amsterdam to Bali, 2 adults, 15 to 29 August, economy class')">🌴 Amsterdam → Bali in August</span>
-    <span class="chip" onclick="fillInput('Cheapest warm destination for 2 adults and 2 children aged 8 and 10, minimum 15 degrees, 8 to 14 days, travelling between 19 December and 2 January, flying from Amsterdam')">🎄 Warm family trip in December</span>
-    <span class="chip" onclick="fillInput('Best budget flights from Amsterdam to New York next month, 1 adult')">🗽 Amsterdam → New York</span>
-  </div>
-
-  <div id="chat-box">
-    <div class="message assistant">👋 Hi! I'm your AI Travel Assistant powered by real-time web search.
-
-Tell me your trip details and I'll find and compare the best flight options for you! For example:
-
-- "Flights from Amsterdam to Bali, 2 adults, 10–24 August, economy"
-- "Cheapest warm destination for a family of 4, mid-December, flying from Amsterdam"
-- "Compare business class flights to Tokyo in October"
-
-The more details you give me, the better I can help! ✈️</div>
-  </div>
+  <div id="chat-box"></div>
 
   <div id="input-area">
-    <input type="text" id="user-input"
-      placeholder="Describe your trip or ask any travel question..."
-      onkeydown="if(event.key==='Enter') sendMessage()" />
+    <input
+      type="text"
+      id="user-input"
+      placeholder="Type your message and press Enter..."
+      onkeydown="if(event.key==='Enter') sendMessage()"
+    />
     <button id="send-btn" onclick="sendMessage()">Send ✈️</button>
   </div>
 
+
+  <!-- Load tools and agent before the UI logic below -->
+  <script src="tools.js"></script>
+  <script src="agent.js"></script>
+
   <script>
+    // ── State ──
+    const apiKey = document.getElementById("api-key").value.trim();
     let conversationHistory = [];
+    let isAgentRunning = false;
+    let currentThinkingId = null;
 
-    const systemPrompt = `You are an expert AI Travel Assistant with access to real-time web search.
+    // ── Show welcome message on load ──
+    window.onload = () => {
+      addMessage(
+        "assistant",
+        `👋 Hi! I'm your AI Travel Agent.\n\n` +
+        `I'll help you find the best flights and destinations by searching ` +
+        `across multiple travel windows and comparing all options for you.\n\n` +
+        `To get started, just tell me you'd like to plan a trip — ` +
+        `and I'll guide you through everything step by step! ✈️`
+      );
+    };
 
-Your main job is to help users find the best flights and travel options. When a user asks about flights or destinations, you MUST use your web search tool to find current, real-time flight data before responding.
 
-WHEN SEARCHING FOR FLIGHTS:
-- Search for actual current flight prices on routes mentioned
-- Search multiple airlines and compare options
-- Look for prices on Google Flights, Skyscanner, Kayak, and airline websites
-- Always find at least 2-3 different options to compare
-
-WHEN PRESENTING RESULTS:
-- Show a clear comparison of options (airline, duration, stops, price per person)
-- Clearly mark the best option with ⭐
-- Explain WHY it is the best option (price vs. travel time vs. convenience)
-- Always mention where to book (Skyscanner, Google Flights, etc.)
-- Show total price for all passengers, not just per person
-
-WHEN SEARCHING FOR DESTINATIONS:
-- Search for destinations matching ALL the user's criteria (temperature, budget, duration)
-- Find flight prices to the top matching destinations
-- Compare total costs including any family discounts for children
-- Factor in weather data for the travel period
-
-IF INFORMATION IS MISSING, ask for:
-- Departure airport or city
-- Travel dates or period
-- Number of passengers (and children's ages if relevant)
-- Budget preference (economy / business / first class)
-
-Always be friendly, concise and end with a clear recommendation.`;
-
-    function fillInput(text) {
-      document.getElementById('user-input').value = text;
-      document.getElementById('user-input').focus();
-    }
-
+    // ── Main send function ──
     async function sendMessage() {
-      const apiKey = document.getElementById('api-key').value.trim();
-      const userInput = document.getElementById('user-input').value.trim();
-      const chatBox = document.getElementById('chat-box');
-      const sendBtn = document.getElementById('send-btn');
+      const apiKey   = document.getElementById("api-key").value.trim() || MY_API_KEY;
+      const userInput = document.getElementById("user-input").value.trim();
 
       if (!apiKey) {
-        alert('Please paste your Claude API key first!');
+        alert("Please paste your Claude API key first!");
         return;
       }
-      if (!userInput) return;
+      if (!userInput || isAgentRunning) return;
 
-      // Show user message
-      const userMsg = document.createElement('div');
-      userMsg.className = 'message user';
-      userMsg.textContent = userInput;
-      chatBox.appendChild(userMsg);
-      document.getElementById('user-input').value = '';
-      sendBtn.disabled = true;
+      // Lock UI while agent is running
+      isAgentRunning = true;
+      setInputEnabled(false);
 
-      // Add to conversation history
-      conversationHistory.push({ role: 'user', content: userInput });
+      // Show user message and clear input
+      addMessage("user", userInput);
+      document.getElementById("user-input").value = "";
 
-      // Show typing indicator
-      const typing = document.createElement('div');
-      typing.className = 'message typing';
-      typing.textContent = '🔍 Searching live flight data — this may take a few seconds...';
-      chatBox.appendChild(typing);
-      chatBox.scrollTop = chatBox.scrollHeight;
+      // Show initial thinking indicator
+      currentThinkingId = addThinking("💭 Agent is thinking...");
 
       try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
+        await runAgent(
+          userInput,
+          conversationHistory,
+          apiKey,
+
+          // ── onUpdate callback — called before AND after each tool ──
+          (toolName, input, result) => {
+            removeThinking();
+
+            // Build the progress message
+            const msg = buildUpdateMessage(toolName, input, result);
+
+            // Before tool runs (result is undefined) → show start message
+            // After tool runs (result exists) → show completion message
+            const isDone  = result !== undefined;
+            const isError = isDone && result && result.error;
+
+            addLiveUpdate(
+              msg,
+              isError ? "error" : isDone ? "done" : ""
+            );
           },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 2048,
-            system: systemPrompt,
-            tools: [{ type: "web_search_20250305", name: "web_search" }],
-            messages: conversationHistory
-          })
-        });
 
-        const data = await response.json();
-        chatBox.removeChild(typing);
+          // ── onFinalReply callback — called for intermediate and final text ──
+          (text, isIntermediate) => {
+            removeThinking();
+            if (text && text.trim()) {
+              addMessage("assistant", text);
+            }
 
-        // Extract text blocks from response
-        const reply = data.content
-          .filter(block => block.type === 'text')
-          .map(block => block.text)
-          .join('\n');
-
-        const finalReply = reply || 'Sorry, I could not get a response. Please try again.';
-
-        // Add assistant response to history
-        conversationHistory.push({ role: 'assistant', content: data.content });
-
-        // Display assistant message
-        const assistantMsg = document.createElement('div');
-        assistantMsg.className = 'message assistant';
-        assistantMsg.textContent = finalReply;
-        chatBox.appendChild(assistantMsg);
+            // If it's an intermediate message (agent talking before tool calls),
+            // show a new thinking indicator for what comes next
+            if (isIntermediate) {
+              currentThinkingId = addThinking("🔍 Searching now...");
+            }
+          }
+        );
 
       } catch (error) {
-        chatBox.removeChild(typing);
-        const errMsg = document.createElement('div');
-        errMsg.className = 'message assistant';
-        errMsg.textContent = '⚠️ Error: Could not connect. Please check your API key and try again.';
-        chatBox.appendChild(errMsg);
+        removeThinking();
+        addMessage(
+          "assistant",
+          "⚠️ Something went wrong: " + error.message +
+          "\n\nPlease check your API key and try again."
+        );
       }
 
-      sendBtn.disabled = false;
+      // Unlock UI
+      isAgentRunning = false;
+      setInputEnabled(true);
+    }
+
+
+    // ── UI helper functions ──
+
+    function addMessage(role, text) {
+      const chatBox = document.getElementById("chat-box");
+      const div = document.createElement("div");
+      div.className = `message ${role}`;
+      div.textContent = text;
+      chatBox.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addLiveUpdate(text, modifier) {
+      const chatBox = document.getElementById("chat-box");
+      const div = document.createElement("div");
+      div.className = "live-update" + (modifier ? " " + modifier : "");
+      div.textContent = text;
+      chatBox.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addThinking(text) {
+      const chatBox = document.getElementById("chat-box");
+      const id = "thinking-" + Date.now();
+      const div = document.createElement("div");
+      div.id = id;
+      div.className = "message thinking";
+      div.textContent = text;
+      chatBox.appendChild(div);
+      scrollToBottom();
+      return id;
+    }
+
+    function removeThinking() {
+      if (currentThinkingId) {
+        const el = document.getElementById(currentThinkingId);
+        if (el) el.remove();
+        currentThinkingId = null;
+      }
+    }
+
+    function scrollToBottom() {
+      const chatBox = document.getElementById("chat-box");
       chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function setInputEnabled(enabled) {
+      document.getElementById("send-btn").disabled   = !enabled;
+      document.getElementById("user-input").disabled = !enabled;
     }
   </script>
 
