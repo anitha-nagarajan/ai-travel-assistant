@@ -92,7 +92,7 @@ IMPORTANT RULES
 // and keeps looping until Claude gives a final text answer
 // ----------------------------------------------------------
 
-async function runAgent(userMessage, conversationHistory, apiKey, onUpdate, onFinalReply) {
+async function runAgent(userMessage, conversationHistory, apiKey, serpApiKey, onUpdate, onFinalReply){
 
   // Add the user's latest message to the conversation
   conversationHistory.push({ role: "user", content: userMessage });
@@ -174,7 +174,7 @@ async function runAgent(userMessage, conversationHistory, apiKey, onUpdate, onFi
         await sleep(8000);
 
         // Run the tool (defined in tools.js)
-        const result = await executeTool(toolCall.name, toolCall.input, apiKey);
+        const result = await executeTool(toolCall.name, toolCall.input, apiKey, serpApiKey);
 
         // Send a completion update to the UI after the tool finishes
         onUpdate(toolCall.name, toolCall.input, result);

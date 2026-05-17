@@ -187,9 +187,15 @@
 
   <div id="api-section">
     <input
-      type="password"
-      id="api-key"
-      placeholder="🔑 Paste your Claude API key here to start..."
+    type="text"
+    id="api-key"
+    placeholder="🔑 Paste your Claude API key here to start..."
+  />
+    <input
+      type="text"
+      id="serp-api-key"
+      placeholder="🔍 Paste your SerpApi key here for live flight data..."
+      style="margin-top: 8px;"
     />
   </div>
 
@@ -232,7 +238,8 @@
 
     // ── Main send function ──
     async function sendMessage() {
-      const apiKey   = document.getElementById("api-key").value.trim() || MY_API_KEY;
+      const apiKey   = document.getElementById("api-key").value.trim();
+      const serpApiKey = document.getElementById("serp-api-key").value.trim();
       const userInput = document.getElementById("user-input").value.trim();
 
       if (!apiKey) {
@@ -257,6 +264,7 @@
           userInput,
           conversationHistory,
           apiKey,
+          serpApiKey,
 
           // ── onUpdate callback — called before AND after each tool ──
           (toolName, input, result) => {

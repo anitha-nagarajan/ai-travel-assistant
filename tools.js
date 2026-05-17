@@ -180,21 +180,15 @@ const TOOL_DEFINITIONS = [
 // ----------------------------------------------------------
 
 // Master function — routes each tool call to the right function
-async function executeTool(toolName, toolInput, apiKey) {
+async function executeTool(toolName, toolInput, apiKey, serpApiKey) {
   switch (toolName) {
     case "narrow_destinations":
       return await narrowDestinations(toolInput, apiKey);
     case "search_flights":
-      return await searchFlights(toolInput, apiKey);
+      return await searchFlights(toolInput, serpApiKey);
     case "get_weather":
       return await getWeather(toolInput, apiKey);
-    case "calculate_budget":
-      return calculateBudget(toolInput);
-    default:
-      return { error: `Unknown tool: ${toolName}` };
   }
-}
-
 // Tool 1: Find matching destinations using web search
 async function narrowDestinations(input, apiKey) {
   const query = `Best holiday destinations reachable from 
@@ -219,28 +213,58 @@ async function narrowDestinations(input, apiKey) {
   );
 }
 
-// Tool 2: Search real-time flight prices using web search
-async function searchFlights(input, apiKey) {
-  const query = `Cheapest return flights from ${input.origin} to ${input.destination}, 
-  departing ${input.departure_date}, returning ${input.return_date}, 
-  ${input.adults} adult${input.adults > 1 ? "s" : ""}
-  ${input.children ? "and " + input.children + " children" : ""}, 
-  ${input.cabin_class || "economy class"}, 
-  ${input.direct_only ? "direct flights only" : "any stops"}.
-  Current prices on Skyscanner or Google Flights.`;
+// Tool 2: Search real-time flight prices using SerpApi Google Flights
+async function searchFlights(input, serpApiKey) {
+  try {
+    // Build the search parameters
+    const params = new URLSearchParams({
+      engine: "google_flights",
+      departure_id: input.origin,
+      arrival_id: input.destination,
+      outbound_date: input.departure_date,
+      return_date: input.return_date,
+      adults: input.adults || 1,
+      children: input.children || 0,
+      currency: "EUR",
+      gl: "nl",
+      hl: "en",
+      type: "1", // 1 = round trip
+      api_key: serpApiKey
+    });
 
-  return await searchViaClaudeAPI(
-    query,
-    apiKey,
-    `You are a flight price analyst. Based on the search results, return a JSON 
-    object with these fields:
-    cheapest_price_per_adult (number, in EUR),
-    airline (string),
-    duration_hours (number),
-    stops (number, 0 for direct),
-    booking_url (string, use "https://www.skyscanner.com" if not found).
-    Return ONLY valid JSON. No explanation, no markdown, no extra text.`
-  );
+    // Add direct flights filter if requested
+    if (input.direct_only) {
+      params.append("stops", "0");
+    }
+
+    // Use CORS proxy so browser can call SerpApi directly
+    const url = `https://corsproxy.io/?https://serpapi.com/search?${params.toString()}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    // Extract the best available flight
+    const flights = data.best_flights || data.other_flights || [];
+    if (flights.length === 0) {
+      return { error: "No flights found for this route and dates" };
+    }
+
+    const best = flights[0];
+    const firstSegment = best.flights[0];
+    const lastSegment = best.flights[best.flights.length - 1];
+
+    return {
+      cheapest_price_per_adult: best.price,
+      airline: firstSegment.airline,
+      duration_hours: Math.round((best.total_duration / 60) * 10) / 10,
+      stops: best.flights.length - 1,
+      departure_time: firstSegment.departure_airport.time,
+      arrival_time: lastSegment.arrival_airport.time,
+      booking_url: "https://www.google.com/flights"
+    };
+
+  } catch (error) {
+    return { error: error.message };
+  }
 }
 
 // Tool 3: Get weather for a destination during travel dates
@@ -259,6 +283,7 @@ async function getWeather(input, apiKey) {
     suitability_note (string, max 12 words).
     Return ONLY valid JSON. No explanation, no markdown, no extra text.`
   );
+}
 }
 
 // Tool 4: Calculate total budget (no web search needed — pure calculation)
