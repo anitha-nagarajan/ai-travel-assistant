@@ -84,7 +84,7 @@ function generateTravelWindows(travelPeriod, minDays, maxDays) {
           duration_days: duration
         });
 
-        if (windows.length >= 4) return windows;
+        if (windows.length >= 3) return windows;
       }
     }
   } catch {
@@ -162,7 +162,7 @@ async function runOrchestrator(
       "anthropic-dangerous-direct-browser-access": "true"
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: SONNET_MODEL,
       max_tokens: 1200,
       system: ORCHESTRATOR_PROMPT,
       messages: conversationHistory
@@ -229,7 +229,9 @@ async function runOrchestrator(
   onUpdate("🚀 All requirements collected! Starting search with specialist agents...");
 
   try {
-    await sleep(1500);
+    // Brief pause so Haiku TPM bucket can recover after orchestrator chat
+    onUpdate("⏳ Preparing specialist agents (avoiding API rate limits)...");
+    await sleep(8000);
 
     const destinations = await runDestinationAgent(
       preferences,
@@ -259,11 +261,11 @@ async function runOrchestrator(
     const flightResults = [];
     const origin = preferences.departure_airports[0];
 
-    for (const destination of destinations.slice(0, 3)) {
+    for (const destination of destinations.slice(0, 2)) {
       const destCode = normalizeAirportCode(destination.airport_code);
 
-      for (const window of windows) {
-        await sleep(2500);
+      for (const window of windows.slice(0, 3)) {
+        await sleep(3500);
 
         const result = await runFlightAgent(
           {
@@ -295,7 +297,7 @@ async function runOrchestrator(
       if (seenCities.has(cityKey)) continue;
       seenCities.add(cityKey);
 
-      await sleep(2000);
+      await sleep(5000);
 
       const weather = await runWeatherAgent(
         result.destination_city || result.destination,

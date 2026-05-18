@@ -1,8 +1,13 @@
 // ============================================================
 // WEATHER-AGENT.JS
-// Specialist agent that checks weather conditions for a
-// destination during a specific travel period
+// Weather for a destination (single API call + local JSON parse)
 // ============================================================
+
+const WEATHER_SYSTEM_PROMPT = `You are a weather research agent.
+Search the web, then reply with ONLY one JSON object (no markdown).
+Fields: destination, travel_period, avg_temp_celsius, min_temp_celsius,
+max_temp_celsius, weather_description, rainfall_mm, sunshine_hours_per_day,
+is_suitable, suitability_note, recommendation.`;
 
 async function runWeatherAgent(destination, travelPeriod, claudeApiKey, onUpdate) {
   if (onUpdate) {
@@ -11,98 +16,31 @@ async function runWeatherAgent(destination, travelPeriod, claudeApiKey, onUpdate
 
   const searchQuery =
     `Typical weather in ${destination} during ${travelPeriod}. ` +
-    `Include average, min and max temperature, rainfall, sunshine hours, ` +
-    `and whether it is a good time for a holiday.`;
+    `Historical averages for tourists.`;
 
-  const searchResponse = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": claudeApiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true"
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1000,
-      system:
-        "You are a weather research assistant. Search the web and summarize " +
-        "typical weather for the destination and travel period. Be specific " +
-        "about temperatures and conditions.",
+  const data = await callClaude(
+    {
+      model: HAIKU_MODEL,
+      max_tokens: 500,
+      system: WEATHER_SYSTEM_PROMPT,
       tools: [{ type: "web_search_20250305", name: "web_search" }],
       messages: [{ role: "user", content: searchQuery }]
-    })
-  });
-
-  const searchData = await searchResponse.json();
-
-  if (searchData.error) {
-    throw new Error(`Weather Agent API error: ${searchData.error.message}`);
-  }
-
-  const rawText = searchData.content
-    .filter(b => b.type === "text")
-    .map(b => b.text)
-    .join("");
-
-  const formatResponse = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": claudeApiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true"
     },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 600,
-      system:
-        "Convert weather research into ONE JSON object only. No markdown. " +
-        "Fields: destination, travel_period, avg_temp_celsius, min_temp_celsius, " +
-        "max_temp_celsius, weather_description, rainfall_mm, sunshine_hours_per_day, " +
-        "is_suitable, suitability_note, recommendation.",
-      messages: [{
-        role: "user",
-        content:
-          `Destination: ${destination}\nTravel period: ${travelPeriod}\n\n` +
-          `Research:\n${rawText}`
-      }]
-    })
-  });
+    claudeApiKey,
+    { onUpdate }
+  );
 
-  const formatData = await formatResponse.json();
+  const text = extractTextFromResponse(data);
+  let weather = parseJsonObject(text);
 
-  if (formatData.error) {
-    throw new Error(`Weather Agent formatting error: ${formatData.error.message}`);
-  }
-
-  const formattedText = formatData.content
-    .filter(b => b.type === "text")
-    .map(b => b.text)
-    .join("");
-
-  let weather = null;
-
-  try {
-    const clean = formattedText.replace(/```json|```/g, "").trim();
-    weather = JSON.parse(clean);
-  } catch {
-    try {
-      const match = formattedText.match(/\{[\s\S]*\}/);
-      if (match) weather = JSON.parse(match[0]);
-    } catch {
-      weather = null;
-    }
-  }
-
-  if (!weather || typeof weather !== "object") {
+  if (!weather) {
     weather = {
       destination,
       travel_period: travelPeriod,
       avg_temp_celsius: null,
       weather_description: "Weather data unavailable",
       is_suitable: null,
-      suitability_note: "Could not retrieve weather data",
+      suitability_note: "Could not parse weather response",
       recommendation: "Check weather closer to your travel date"
     };
   } else {

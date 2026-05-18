@@ -140,7 +140,7 @@ following the exact format in your instructions.`;
       "anthropic-dangerous-direct-browser-access": "true"
     },
     body: JSON.stringify({
-      model:    "claude-sonnet-4-20250514",
+      model:    SONNET_MODEL,
       max_tokens: 2000,
       system:   RECOMMENDATION_AGENT_PROMPT,
       messages: [{ role: "user", content: requestMessage }]
