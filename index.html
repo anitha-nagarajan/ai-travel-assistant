@@ -236,7 +236,8 @@
     <button id="send-btn" onclick="sendMessage()">Send ✈️</button>
   </div>
 
-  <!-- Load all agent files -->
+  <!-- Load shared helpers and agents (order matters) -->
+  <script src="shared.js"></script>
   <script src="destination-agent.js"></script>
   <script src="weather-agent.js"></script>
   <script src="flight-agent.js"></script>
@@ -279,7 +280,14 @@
       const serpApiKey = document.getElementById("serp-api-key").value.trim();
       const userInput  = document.getElementById("user-input").value.trim();
 
-      if (!apiKey) { alert("Please paste your Claude API key first!"); return; }
+      if (!apiKey) {
+        alert("Please paste your Claude API key first!");
+        return;
+      }
+      if (!serpApiKey) {
+        alert("Please paste your SerpApi key for live flight search!");
+        return;
+      }
       if (!userInput || isAgentRunning) return;
 
       isAgentRunning = true;
