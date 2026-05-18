@@ -1,9 +1,73 @@
-# ai-travel-assistant
-AI-powered travel assistant that searches real-time flights and suggests the best deals
-version 3:
-<img width="876" height="600" alt="image" src="https://github.com/user-attachments/assets/706d2914-814d-4378-bf70-41577f28c750" />
+# AI Travel Assistant
 
+AI-powered travel assistant that finds destinations, compares real-time flights, checks weather via **Open-Meteo**, and recommends the best options.
 
-version 2:
-<img width="708" height="317" alt="image" src="https://github.com/user-attachments/assets/b8dcfc56-da7b-4978-9364-7cad7dbe0731" />
+## v4 architecture
 
+```mermaid
+flowchart LR
+    Browser["public/ UI"]
+    API["Express server"]
+    Claude["Anthropic API"]
+    Serp["SerpApi"]
+    Meteo["Open-Meteo"]
+
+    Browser --> API
+    API --> Claude
+    API --> Serp
+    API --> Meteo
+```
+
+| Layer | Role |
+|-------|------|
+| **Orchestrator** | Claude Sonnet — requirements chat |
+| **Destinations** | Claude Haiku — shortlist (cached, no web search) |
+| **Flights** | SerpApi Google Flights (server-side) |
+| **Weather** | Open-Meteo geocoding + forecast/archive (**no LLM**) |
+| **Recommendation** | Claude Sonnet — final top 3 |
+
+API keys live in **server `.env` only** — not in the browser.
+
+## Quick start
+
+```bash
+cp .env.example .env
+# Edit .env: ANTHROPIC_API_KEY and SERPAPI_KEY
+
+npm install
+npm start
+```
+
+Open **http://localhost:3000**
+
+Development with auto-reload:
+
+```bash
+npm run dev
+```
+
+## Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ANTHROPIC_API_KEY` | Yes | Claude API for orchestrator, destinations, recommendation |
+| `SERPAPI_KEY` | Yes | Live flight search |
+| `PORT` | No | Default `3000` |
+
+## API endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/health` | Server status and key configuration |
+| POST | `/api/chat` | Orchestrator message `{ message, conversationHistory }` |
+| POST | `/api/search/stream` | SSE search pipeline `{ preferences }` |
+
+## Legacy v3 (browser-only)
+
+The root-level `*-agent.js` files are the previous browser-based multi-agent version. v4 uses `server/` and `public/` instead.
+
+## Branches
+
+- `main` — earlier versions
+- `v3-multi-agent` — browser multi-agent
+- `v4` — backend + Open-Meteo (this layout)
