@@ -18,11 +18,7 @@
       color: #fff;
     }
 
-    h1 {
-      font-size: 2rem;
-      margin-bottom: 6px;
-      text-align: center;
-    }
+    h1 { font-size: 2rem; margin-bottom: 6px; text-align: center; }
 
     .subtitle {
       font-size: 0.95rem;
@@ -31,11 +27,14 @@
       text-align: center;
     }
 
-    /* ── API key input ── */
+    /* ── API key inputs ── */
     #api-section {
       width: 100%;
       max-width: 740px;
       margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
 
     #api-section input {
@@ -49,6 +48,38 @@
     }
 
     #api-section input::placeholder { color: #7a9ab0; }
+
+    /* ── Agent status bar ── */
+    #agent-status {
+      width: 100%;
+      max-width: 740px;
+      margin-bottom: 12px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .agent-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #a0c4d8;
+      background: rgba(255,255,255,0.05);
+      transition: all 0.3s;
+    }
+
+    .agent-badge.active {
+      background: rgba(26,115,232,0.3);
+      border-color: #1a73e8;
+      color: #fff;
+    }
+
+    .agent-badge.done {
+      background: rgba(46,204,113,0.2);
+      border-color: #2ecc71;
+      color: #7dd4a8;
+    }
 
     /* ── Chat window ── */
     #chat-box {
@@ -66,7 +97,6 @@
       margin-bottom: 16px;
     }
 
-    /* ── Message bubbles ── */
     .message {
       padding: 12px 16px;
       border-radius: 12px;
@@ -76,21 +106,18 @@
       white-space: pre-wrap;
     }
 
-    /* User messages — blue, right aligned */
     .message.user {
       background: #1a73e8;
       align-self: flex-end;
       border-bottom-right-radius: 4px;
     }
 
-    /* Agent replies — grey, left aligned */
     .message.assistant {
       background: rgba(255,255,255,0.1);
       align-self: flex-start;
       border-bottom-left-radius: 4px;
     }
 
-    /* Thinking indicator — animated dots */
     .message.thinking {
       background: rgba(255,255,255,0.07);
       align-self: flex-start;
@@ -100,7 +127,7 @@
       border-bottom-left-radius: 4px;
     }
 
-    /* Live update messages — compact progress lines */
+    /* Live update lines */
     .live-update {
       align-self: flex-start;
       font-size: 0.82rem;
@@ -113,13 +140,11 @@
       line-height: 1.4;
     }
 
-    /* Completion updates — slightly brighter */
-    .live-update.done {
+    .live-update.done  {
       color: #7dd4a8;
       border-left-color: #2ecc71;
     }
 
-    /* Error updates */
     .live-update.error {
       color: #f4a261;
       border-left-color: #e07b39;
@@ -145,11 +170,7 @@
     }
 
     #user-input::placeholder { color: #7a9ab0; }
-
-    #user-input:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+    #user-input:disabled { opacity: 0.5; cursor: not-allowed; }
 
     #send-btn {
       padding: 12px 22px;
@@ -164,13 +185,8 @@
     }
 
     #send-btn:hover:not(:disabled) { background: #1558b0; }
+    #send-btn:disabled { background: #3a5068; cursor: not-allowed; }
 
-    #send-btn:disabled {
-      background: #3a5068;
-      cursor: not-allowed;
-    }
-
-    /* ── Scrollbar styling ── */
     #chat-box::-webkit-scrollbar { width: 6px; }
     #chat-box::-webkit-scrollbar-thumb {
       background: rgba(255,255,255,0.15);
@@ -182,21 +198,30 @@
 
   <h1>✈️ AI Travel Agent</h1>
   <p class="subtitle">
-    Tell me about your trip — I'll search destinations, compare flights and find the best deal!
+    Powered by 4 specialist AI agents working together to find your perfect trip!
   </p>
 
+  <!-- API key inputs -->
   <div id="api-section">
     <input
-    type="text"
-    id="api-key"
-    placeholder="🔑 Paste your Claude API key here to start..."
-  />
+      type="text"
+      id="api-key"
+      placeholder="🔑 Paste your Claude API key here..."
+    />
     <input
       type="text"
       id="serp-api-key"
       placeholder="🔍 Paste your SerpApi key here for live flight data..."
-      style="margin-top: 8px;"
     />
+  </div>
+
+  <!-- Agent status badges -->
+  <div id="agent-status">
+    <span class="agent-badge" id="badge-orchestrator">🎯 Orchestrator</span>
+    <span class="agent-badge" id="badge-destination">🌍 Destination Agent</span>
+    <span class="agent-badge" id="badge-flight">✈️ Flight Agent</span>
+    <span class="agent-badge" id="badge-weather">🌤️ Weather Agent</span>
+    <span class="agent-badge" id="badge-recommendation">⭐ Recommendation Agent</span>
   </div>
 
   <div id="chat-box"></div>
@@ -211,88 +236,97 @@
     <button id="send-btn" onclick="sendMessage()">Send ✈️</button>
   </div>
 
-
-  <!-- Load tools and agent before the UI logic below -->
-  <script src="tools.js"></script>
-  <script src="agent.js"></script>
+  <!-- Load all agent files -->
+  <script src="destination-agent.js"></script>
+  <script src="weather-agent.js"></script>
+  <script src="flight-agent.js"></script>
+  <script src="recommendation-agent.js"></script>
+  <script src="orchestrator.js"></script>
 
   <script>
     // ── State ──
-    const apiKey = document.getElementById("api-key").value.trim();
     let conversationHistory = [];
     let isAgentRunning = false;
     let currentThinkingId = null;
 
-    // ── Show welcome message on load ──
+    // ── Agent badge mapping ──
+    const AGENT_BADGES = {
+      "Destination Agent": "badge-destination",
+      "Flight Agent":      "badge-flight",
+      "Weather Agent":     "badge-weather",
+      "Recommendation Agent": "badge-recommendation",
+      "Orchestrator":      "badge-orchestrator"
+    };
+
+    // ── Welcome message on load ──
     window.onload = () => {
+      setAgentActive("orchestrator");
       addMessage(
         "assistant",
-        `👋 Hi! I'm your AI Travel Agent.\n\n` +
-        `I'll help you find the best flights and destinations by searching ` +
-        `across multiple travel windows and comparing all options for you.\n\n` +
-        `To get started, just tell me you'd like to plan a trip — ` +
-        `and I'll guide you through everything step by step! ✈️`
+        `👋 Hi! I'm your AI Travel Agent — now powered by 4 specialist agents!\n\n` +
+        `🎯 Orchestrator — talks to you and coordinates everything\n` +
+        `🌍 Destination Agent — finds matching destinations worldwide\n` +
+        `✈️ Flight Agent — searches real flights via Google Flights\n` +
+        `🌤️ Weather Agent — checks conditions at each destination\n` +
+        `⭐ Recommendation Agent — analyses all results and recommends the best option\n\n` +
+        `To get started, just tell me you'd like to plan a trip! ✈️`
       );
     };
 
-
-    // ── Main send function ──
+    // ── Send message ──
     async function sendMessage() {
-      const apiKey   = document.getElementById("api-key").value.trim();
+      const apiKey     = document.getElementById("api-key").value.trim();
       const serpApiKey = document.getElementById("serp-api-key").value.trim();
-      const userInput = document.getElementById("user-input").value.trim();
+      const userInput  = document.getElementById("user-input").value.trim();
 
-      if (!apiKey) {
-        alert("Please paste your Claude API key first!");
-        return;
-      }
+      if (!apiKey) { alert("Please paste your Claude API key first!"); return; }
       if (!userInput || isAgentRunning) return;
 
-      // Lock UI while agent is running
       isAgentRunning = true;
       setInputEnabled(false);
 
-      // Show user message and clear input
       addMessage("user", userInput);
       document.getElementById("user-input").value = "";
-
-      // Show initial thinking indicator
-      currentThinkingId = addThinking("💭 Agent is thinking...");
+      currentThinkingId = addThinking("💭 Orchestrator is thinking...");
+      setAgentActive("orchestrator");
 
       try {
-        await runAgent(
+        await runOrchestrator(
           userInput,
           conversationHistory,
           apiKey,
           serpApiKey,
 
-          // ── onUpdate callback — called before AND after each tool ──
-          (toolName, input, result) => {
+          // onUpdate — live progress messages
+          (message) => {
             removeThinking();
 
-            // Build the progress message
-            const msg = buildUpdateMessage(toolName, input, result);
+            // Detect which agent is active from message content
+            if (message.includes("Destination Agent")) setAgentActive("destination");
+            else if (message.includes("Flight Agent"))  setAgentActive("flight");
+            else if (message.includes("Weather Agent")) setAgentActive("weather");
+            else if (message.includes("Recommendation Agent")) setAgentActive("recommendation");
 
-            // Before tool runs (result is undefined) → show start message
-            // After tool runs (result exists) → show completion message
-            const isDone  = result !== undefined;
-            const isError = isDone && result && result.error;
-
+            // Style based on message type
+            const isDone  = message.startsWith("✅");
+            const isError = message.startsWith("⚠️");
             addLiveUpdate(
-              msg,
+              message,
               isError ? "error" : isDone ? "done" : ""
             );
+
+            // Show new thinking indicator after updates
+            if (!isDone && !isError) {
+              currentThinkingId = addThinking("⏳ Working...");
+            }
           },
 
-          // ── onFinalReply callback — called for intermediate and final text ──
+          // onFinalReply — agent text responses
           (text, isIntermediate) => {
             removeThinking();
             if (text && text.trim()) {
               addMessage("assistant", text);
             }
-
-            // If it's an intermediate message (agent talking before tool calls),
-            // show a new thinking indicator for what comes next
             if (isIntermediate) {
               currentThinkingId = addThinking("🔍 Searching now...");
             }
@@ -304,18 +338,18 @@
         addMessage(
           "assistant",
           "⚠️ Something went wrong: " + error.message +
-          "\n\nPlease check your API key and try again."
+          "\n\nPlease check your API keys and try again."
         );
       }
 
-      // Unlock UI
+      // Mark recommendation agent as done when finished
+      setAgentDone("recommendation");
       isAgentRunning = false;
       setInputEnabled(true);
+      setAgentActive("orchestrator");
     }
 
-
-    // ── UI helper functions ──
-
+    // ── UI helpers ──
     function addMessage(role, text) {
       const chatBox = document.getElementById("chat-box");
       const div = document.createElement("div");
@@ -335,6 +369,7 @@
     }
 
     function addThinking(text) {
+      removeThinking();
       const chatBox = document.getElementById("chat-box");
       const id = "thinking-" + Date.now();
       const div = document.createElement("div");
@@ -362,6 +397,36 @@
     function setInputEnabled(enabled) {
       document.getElementById("send-btn").disabled   = !enabled;
       document.getElementById("user-input").disabled = !enabled;
+    }
+
+    // ── Agent badge helpers ──
+    function setAgentActive(agentKey) {
+      // Reset all badges
+      Object.values({
+        orchestrator: "badge-orchestrator",
+        destination:  "badge-destination",
+        flight:       "badge-flight",
+        weather:      "badge-weather",
+        recommendation: "badge-recommendation"
+      }).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.classList.remove("active");
+        }
+      });
+
+      // Set active badge
+      const badgeId = `badge-${agentKey}`;
+      const badge   = document.getElementById(badgeId);
+      if (badge) badge.classList.add("active");
+    }
+
+    function setAgentDone(agentKey) {
+      const badge = document.getElementById(`badge-${agentKey}`);
+      if (badge) {
+        badge.classList.remove("active");
+        badge.classList.add("done");
+      }
     }
   </script>
 
