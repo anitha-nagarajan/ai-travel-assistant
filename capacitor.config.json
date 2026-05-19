@@ -1,0 +1,13 @@
+{
+  "appId": "com.aitravelassistant.app",
+  "appName": "Travel Agent",
+  "webDir": "public",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

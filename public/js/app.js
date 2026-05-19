@@ -1,50 +1,125 @@
 let conversationHistory = [];
 let isRunning = false;
 let thinkingId = null;
+let deferredInstallPrompt = null;
+
+function apiUrl(path) {
+  const base = window.APP_CONFIG?.apiBase || "";
+  return `${base}${path}`;
+}
 
 window.addEventListener("DOMContentLoaded", () => {
+  initHeaderToggle();
+  initComposer();
+  initInstallPrompt();
+  registerServiceWorker();
   checkBackendHealth();
   setAgentActive("orchestrator");
   addMessage(
     "assistant",
-    "👋 Welcome to AI Travel Assistant v4!\n\n" +
-      "Your API keys stay on the server — nothing sensitive in the browser.\n\n" +
-      "🎯 Orchestrator — gathers your trip requirements\n" +
-      "🌍 Destinations — Claude shortlist (cached on server)\n" +
-      "✈️ Flights — live SerpApi / Google Flights\n" +
-      "🌤️ Weather — Open-Meteo (free, no LLM)\n" +
-      "⭐ Recommendation — final ranked picks\n\n" +
-      "Tell me you'd like to plan a trip to get started! ✈️"
+    "👋 Welcome! I'm your AI Travel Agent.\n\n" +
+      "Tell me you'd like to plan a trip — I'll ask a few questions, " +
+      "then search destinations, flights, and weather for you.\n\n" +
+      "Tip: on mobile, tap ⋯ to see agent status. ✈️"
   );
-
-  document.getElementById("send-btn").addEventListener("click", sendMessage);
-  document.getElementById("user-input").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") sendMessage();
-  });
 });
+
+function initHeaderToggle() {
+  const btn = document.getElementById("header-toggle");
+  const panel = document.getElementById("header-details");
+  if (!btn || !panel) return;
+
+  btn.addEventListener("click", () => {
+    const open = panel.hidden;
+    panel.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    btn.setAttribute("aria-label", open ? "Hide status details" : "Show status details");
+  });
+
+  if (window.matchMedia("(min-width: 768px)").matches) {
+    panel.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+  }
+}
+
+function initComposer() {
+  const form = document.getElementById("chat-form");
+  const input = document.getElementById("user-input");
+
+  form?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    sendMessage();
+  });
+
+  input?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  input?.addEventListener("input", autoResizeTextarea);
+  autoResizeTextarea.call(input);
+}
+
+function autoResizeTextarea() {
+  const el = document.getElementById("user-input");
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+}
+
+function initInstallPrompt() {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    if (localStorage.getItem("installDismissed")) return;
+    const banner = document.getElementById("install-banner");
+    if (banner) banner.hidden = false;
+  });
+
+  document.getElementById("install-btn")?.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    document.getElementById("install-banner").hidden = true;
+  });
+
+  document.getElementById("install-dismiss")?.addEventListener("click", () => {
+    localStorage.setItem("installDismissed", "1");
+    document.getElementById("install-banner").hidden = true;
+  });
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
 
 async function checkBackendHealth() {
   const bar = document.getElementById("backend-status");
   const label = document.getElementById("backend-label");
   try {
-    const res = await fetch("/api/health");
+    const res = await fetch(apiUrl("/api/health"));
     const data = await res.json();
     if (data.ok) {
-      bar.classList.remove("offline");
+      bar?.classList.remove("offline");
       const keys = [];
       if (!data.anthropic) keys.push("Anthropic");
       if (!data.serpapi) keys.push("SerpApi");
       label.textContent =
         keys.length > 0
-          ? `Backend online — configure server .env (${keys.join(", ")})`
-          : "Backend online — ready";
+          ? `Online — configure server keys (${keys.join(", ")})`
+          : "Backend online";
     } else {
       throw new Error("unhealthy");
     }
   } catch {
-    bar.classList.add("offline");
-    label.textContent =
-      "Backend offline — run npm start and open http://localhost:3000";
+    bar?.classList.add("offline");
+    label.textContent = window.APP_CONFIG?.apiBase
+      ? "Cannot reach API — check api-base URL"
+      : "Offline — start server (npm start)";
   }
 }
 
@@ -56,12 +131,13 @@ async function sendMessage() {
   isRunning = true;
   setInputEnabled(false);
   input.value = "";
+  autoResizeTextarea.call(input);
   addMessage("user", text);
-  setThinking("💭 Orchestrator is thinking...");
+  setThinking("💭 Thinking…");
   setAgentActive("orchestrator");
 
   try {
-    const chatRes = await fetch("/api/chat", {
+    const chatRes = await fetch(apiUrl("/api/chat"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: text, conversationHistory })
@@ -76,7 +152,7 @@ async function sendMessage() {
     if (chatData.reply) addMessage("assistant", chatData.reply);
 
     if (chatData.searchReady && chatData.preferences) {
-      setThinking("🔍 Specialist agents searching...");
+      setThinking("🔍 Searching…");
       await runSearchStream(chatData.preferences);
     }
   } catch (err) {
@@ -88,10 +164,11 @@ async function sendMessage() {
   isRunning = false;
   setInputEnabled(true);
   setAgentActive("orchestrator");
+  input.focus();
 }
 
 async function runSearchStream(preferences) {
-  const response = await fetch("/api/search/stream", {
+  const response = await fetch(apiUrl("/api/search/stream"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ preferences })
@@ -119,7 +196,7 @@ async function runSearchStream(preferences) {
       try {
         handleSearchEvent(JSON.parse(line.slice(6)));
       } catch {
-        /* skip malformed */
+        /* skip */
       }
     }
   }
@@ -133,7 +210,7 @@ function handleSearchEvent(event) {
       const level =
         event.level === "done" ? "done" : event.level === "warn" ? "warn" : "";
       addLiveUpdate(event.message, level);
-      if (level !== "done" && level !== "warn") setThinking("⏳ Working...");
+      if (level !== "done" && level !== "warn") setThinking("⏳ Working…");
     }
   }
 
@@ -187,7 +264,9 @@ function removeThinking() {
 
 function scrollToBottom() {
   const box = document.getElementById("chat-box");
-  box.scrollTop = box.scrollHeight;
+  requestAnimationFrame(() => {
+    box.scrollTop = box.scrollHeight;
+  });
 }
 
 function setInputEnabled(enabled) {
