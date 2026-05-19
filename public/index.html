@@ -2,46 +2,93 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Travel Agent v4</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+  />
+  <meta name="theme-color" content="#0a1628" />
+  <meta name="description" content="AI travel assistant — flights, weather, and trip recommendations" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Travel Agent" />
+  <!-- Leave empty when UI and API share one host; set your API URL for Capacitor native builds -->
+  <meta name="api-base" content="" />
+
+  <title>AI Travel Agent</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/icons/icon.svg" />
   <link rel="stylesheet" href="/css/app.css" />
 </head>
-<body>
-  <div class="shell">
-    <header>
-      <h1>✈️ AI Travel Agent</h1>
-      <p class="subtitle">
-        Backend-powered pipeline with live flights and Open-Meteo weather
-      </p>
-      <span class="version-tag">v4 · keys on server · Open-Meteo</span>
+<body class="app-body">
+  <div class="app-layout">
+    <header class="app-header">
+      <div class="header-row">
+        <div class="header-brand">
+          <span class="header-icon" aria-hidden="true">✈️</span>
+          <div>
+            <h1>Travel Agent</h1>
+            <p class="header-tagline">Flights · Weather · Top picks</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          id="header-toggle"
+          class="icon-btn"
+          aria-expanded="false"
+          aria-controls="header-details"
+          aria-label="Show status details"
+        >
+          ⋯
+        </button>
+      </div>
+
+      <div id="header-details" class="header-details" hidden>
+        <div id="backend-status" class="status-bar">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="backend-label">Checking backend…</span>
+        </div>
+        <div id="agent-status" class="agent-track" role="tablist" aria-label="Agent progress">
+          <span class="agent-badge" id="badge-orchestrator" role="tab">🎯 Orchestrator</span>
+          <span class="agent-badge" id="badge-destination" role="tab">🌍 Destinations</span>
+          <span class="agent-badge" id="badge-flight" role="tab">✈️ Flights</span>
+          <span class="agent-badge" id="badge-weather" role="tab">🌤️ Weather</span>
+          <span class="agent-badge" id="badge-recommendation" role="tab">⭐ Picks</span>
+        </div>
+      </div>
     </header>
 
-    <div id="backend-status" class="status-bar">
-      <span class="status-dot"></span>
-      <span id="backend-label">Checking backend…</span>
-    </div>
+    <main class="chat-main" id="chat-main">
+      <div id="chat-box" class="chat-box" role="log" aria-live="polite" aria-relevant="additions"></div>
+    </main>
 
-    <div id="agent-status">
-      <span class="agent-badge" id="badge-orchestrator">🎯 Orchestrator</span>
-      <span class="agent-badge" id="badge-destination">🌍 Destinations</span>
-      <span class="agent-badge" id="badge-flight">✈️ Flights</span>
-      <span class="agent-badge" id="badge-weather">🌤️ Open-Meteo</span>
-      <span class="agent-badge" id="badge-recommendation">⭐ Recommendation</span>
-    </div>
+    <footer class="composer">
+      <form id="chat-form" class="composer-form" autocomplete="off">
+        <label class="sr-only" for="user-input">Message</label>
+        <textarea
+          id="user-input"
+          rows="1"
+          placeholder="Plan a trip…"
+          enterkeyhint="send"
+          autocomplete="off"
+        ></textarea>
+        <button type="submit" id="send-btn" class="send-btn" aria-label="Send message">
+          <span class="send-icon" aria-hidden="true">↑</span>
+        </button>
+      </form>
+    </footer>
+  </div>
 
-    <div id="chat-box"></div>
-
-    <div id="input-area">
-      <input
-        type="text"
-        id="user-input"
-        placeholder="Type your message and press Enter..."
-        autocomplete="off"
-      />
-      <button type="button" id="send-btn">Send ✈️</button>
+  <div id="install-banner" class="install-banner" hidden>
+    <p>Install this app on your home screen for quick access.</p>
+    <div class="install-actions">
+      <button type="button" id="install-btn" class="install-btn">Install</button>
+      <button type="button" id="install-dismiss" class="install-dismiss">Not now</button>
     </div>
   </div>
 
+  <script src="/js/config.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

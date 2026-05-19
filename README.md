@@ -40,6 +40,23 @@ npm start
 
 Open **http://localhost:3000**
 
+On a phone (same Wi‑Fi): `http://<your-computer-ip>:3000`
+
+### Mobile app
+
+The UI is **mobile-first** and supports:
+
+- **PWA** — install from the browser (Add to Home Screen)
+- **Capacitor** — wrap as iOS/Android for the App Store / Play Store
+
+See **[docs/MOBILE.md](docs/MOBILE.md)** for deployment steps.
+
+```bash
+npm run cap:sync      # after npm install (includes Capacitor)
+npm run cap:open:android
+npm run cap:open:ios
+```
+
 Development with auto-reload:
 
 ```bash
