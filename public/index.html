@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Travel Agent v4</title>
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <h1>✈️ AI Travel Agent</h1>
+      <p class="subtitle">
+        Backend-powered pipeline with live flights and Open-Meteo weather
+      </p>
+      <span class="version-tag">v4 · keys on server · Open-Meteo</span>
+    </header>
+
+    <div id="backend-status" class="status-bar">
+      <span class="status-dot"></span>
+      <span id="backend-label">Checking backend…</span>
+    </div>
+
+    <div id="agent-status">
+      <span class="agent-badge" id="badge-orchestrator">🎯 Orchestrator</span>
+      <span class="agent-badge" id="badge-destination">🌍 Destinations</span>
+      <span class="agent-badge" id="badge-flight">✈️ Flights</span>
+      <span class="agent-badge" id="badge-weather">🌤️ Open-Meteo</span>
+      <span class="agent-badge" id="badge-recommendation">⭐ Recommendation</span>
+    </div>
+
+    <div id="chat-box"></div>
+
+    <div id="input-area">
+      <input
+        type="text"
+        id="user-input"
+        placeholder="Type your message and press Enter..."
+        autocomplete="off"
+      />
+      <button type="button" id="send-btn">Send ✈️</button>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

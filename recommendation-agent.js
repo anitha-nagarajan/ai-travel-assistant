@@ -100,17 +100,21 @@ Would you like me to search again with adjusted preferences?`;
 
   // Build a comprehensive summary for the recommendation agent
   const flightSummary = successfulFlights.map(result => {
-    const weather = weatherResults.find(w => 
-      w.destination.toLowerCase().includes(result.destination.toLowerCase()) ||
-      result.destination.toLowerCase().includes(w.destination.toLowerCase())
-    );
+    const weather = weatherResults.find(w => {
+      if (w.airport_code && w.airport_code === result.destination) return true;
+      const city = (result.destination_city || "").toLowerCase();
+      const wDest = (w.destination || "").toLowerCase();
+      if (!city || !wDest) return false;
+      return wDest.includes(city) || city.includes(wDest);
+    });
 
     return {
-      destination:    result.destination,
-      departure_date: result.departure_date,
-      return_date:    result.return_date,
-      flights:        result.options,
-      weather:        weather || null
+      destination:      result.destination,
+      destination_city: result.destination_city || result.destination,
+      departure_date:   result.departure_date,
+      return_date:      result.return_date,
+      flights:          result.options,
+      weather:          weather || null
     };
   });
 
@@ -136,7 +140,7 @@ following the exact format in your instructions.`;
       "anthropic-dangerous-direct-browser-access": "true"
     },
     body: JSON.stringify({
-      model:    "claude-sonnet-4-20250514",
+      model:    SONNET_MODEL,
       max_tokens: 2000,
       system:   RECOMMENDATION_AGENT_PROMPT,
       messages: [{ role: "user", content: requestMessage }]

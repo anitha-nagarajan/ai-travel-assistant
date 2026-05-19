@@ -1,7 +1,6 @@
 // ============================================================
 // ORCHESTRATOR.JS
-// The master coordinator that collects requirements from the
-// user and delegates tasks to each specialist agent in order
+// Master coordinator: requirements gathering + specialist agents
 // ============================================================
 
 const ORCHESTRATOR_PROMPT = `You are the master Travel Orchestrator Agent.
@@ -15,7 +14,7 @@ Ask maximum 2 questions at a time. Wait for answers before continuing.
 
 Collect in this order:
 1. Number of adults and children (and children's ages if any)
-2. Departure airport(s) or city
+2. Departure airport(s) or city — use IATA codes in SEARCH_READY (e.g. AMS, LHR)
 3. Holiday period (e.g. "19 December to 2 January")
 4. Trip duration preference (min and max days)
 5. Maximum flying time in hours
@@ -28,7 +27,12 @@ Once ALL information is collected:
 - Summarise requirements back to the user clearly
 - Tell them you are handing off to your specialist agents
 - Respond with EXACTLY this JSON on the last line (after your message):
-  SEARCH_READY:{"departure_airports":["AMS"],"max_flying_hours":4,"direct_only":true,"continent_preference":"any","climate_preference":"warm min 20C","travel_period":"19 Dec to 2 Jan","trip_min_days":8,"trip_max_days":14,"adults":2,"children":2,"other_preferences":"beach"}
+  SEARCH_READY:{"departure_airports":["AMS"],"max_flying_hours":4,"direct_only":true,"continent_preference":"any","climate_preference":"warm min 20C","travel_period":"19 December to 2 January","trip_min_days":8,"trip_max_days":14,"adults":2,"children":0,"other_preferences":"beach"}
+
+Rules for SEARCH_READY JSON:
+- departure_airports must be IATA codes (3 letters)
+- children is a number (count), not an array
+- trip_min_days and trip_max_days are required numbers
 
 ═══════════════════════════════════════
 PHASE 2 — RESULT DELIVERY
@@ -38,36 +42,34 @@ present it to the user exactly as given — do not summarise or shorten it.
 Add a warm, friendly intro before the results.`;
 
 
-// ── Generate travel windows from holiday period and duration ──
 function generateTravelWindows(travelPeriod, minDays, maxDays) {
-  // Parse start and end dates from travel period string
-  // Expected format: "19 Dec to 2 Jan" or "19 December to 2 January"
   const windows = [];
+  const min = Math.max(1, Number(minDays) || 7);
+  const max = Math.max(min, Number(maxDays) || min);
 
   try {
     const currentYear = new Date().getFullYear();
+    const parts = travelPeriod.toLowerCase().split(/\s+to\s+/);
 
-    // Split on "to" to get start and end
-    const parts = travelPeriod.toLowerCase().split(" to ");
-    if (parts.length !== 2) return getDefaultWindows();
+    if (parts.length !== 2) return getDefaultWindows(min);
 
-    const startDate = new Date(`${parts[0]} ${currentYear}`);
-    const endDate   = new Date(`${parts[1]} ${currentYear}`);
+    const startDate = new Date(`${parts[0].trim()} ${currentYear}`);
+    let endDate = new Date(`${parts[1].trim()} ${currentYear}`);
 
-    // Handle year wrap (e.g. Dec to Jan)
     if (endDate < startDate) {
       endDate.setFullYear(currentYear + 1);
     }
 
-    if (isNaN(startDate) || isNaN(endDate)) return getDefaultWindows();
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return getDefaultWindows(min);
+    }
 
     const totalDays = Math.round(
       (endDate - startDate) / (1000 * 60 * 60 * 24)
     );
 
-    // Generate windows — sample every 3 days to avoid too many searches
-    for (let startOffset = 0; startOffset <= totalDays - minDays; startOffset += 3) {
-      for (let duration = minDays; duration <= maxDays; duration += 3) {
+    for (let startOffset = 0; startOffset <= totalDays - min; startOffset += 3) {
+      for (let duration = min; duration <= max; duration += 3) {
         const depDate = new Date(startDate);
         depDate.setDate(depDate.getDate() + startOffset);
 
@@ -78,54 +80,69 @@ function generateTravelWindows(travelPeriod, minDays, maxDays) {
 
         windows.push({
           departure_date: formatDateYMD(depDate),
-          return_date:    formatDateYMD(retDate),
-          duration_days:  duration
+          return_date: formatDateYMD(retDate),
+          duration_days: duration
         });
 
-        // Cap at 6 windows to control API usage
-        if (windows.length >= 6) return windows;
+        if (windows.length >= 3) return windows;
       }
     }
-
   } catch {
-    return getDefaultWindows();
+    return getDefaultWindows(min);
   }
 
-  return windows.length > 0 ? windows : getDefaultWindows();
+  return windows.length > 0 ? windows : getDefaultWindows(min);
 }
 
 
-// ── Fallback windows if parsing fails ──
-function getDefaultWindows() {
+function getDefaultWindows(minDays) {
   const today = new Date();
-  const dep1  = new Date(today);
-  dep1.setDate(today.getDate() + 30);
-  const ret1 = new Date(dep1);
-  ret1.setDate(dep1.getDate() + 7);
+  const dep = new Date(today);
+  dep.setDate(today.getDate() + 30);
+  const ret = new Date(dep);
+  ret.setDate(dep.getDate() + minDays);
 
   return [{
-    departure_date: formatDateYMD(dep1),
-    return_date:    formatDateYMD(ret1),
-    duration_days:  7
+    departure_date: formatDateYMD(dep),
+    return_date: formatDateYMD(ret),
+    duration_days: minDays
   }];
 }
 
 
-// ── Format date as YYYY-MM-DD ──
-function formatDateYMD(date) {
-  return date.toISOString().split("T")[0];
+function parseSearchReady(fullText) {
+  const marker = "SEARCH_READY:";
+  const index = fullText.indexOf(marker);
+  if (index === -1) return null;
+
+  const jsonStr = fullText.substring(index + marker.length).trim();
+  const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+
+  return {
+    displayText: fullText.substring(0, index).trim(),
+    preferences: JSON.parse(jsonMatch[0])
+  };
 }
 
 
-// ── Sleep helper ──
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function normalizePreferences(preferences) {
+  preferences.departure_airports = normalizeAirportList(
+    preferences.departure_airports || []
+  );
+  preferences.adults = passengerCount(preferences.adults, 1);
+  preferences.children = passengerCount(preferences.children, 0);
+  preferences.trip_min_days = Number(preferences.trip_min_days) || 7;
+  preferences.trip_max_days = Math.max(
+    preferences.trip_min_days,
+    Number(preferences.trip_max_days) || preferences.trip_min_days
+  );
+  preferences.direct_only = Boolean(preferences.direct_only);
+  preferences.max_flying_hours = Number(preferences.max_flying_hours) || 8;
+  return preferences;
 }
 
 
-// ══════════════════════════════════════════════════════════════
-// MAIN ORCHESTRATOR FUNCTION
-// ══════════════════════════════════════════════════════════════
 async function runOrchestrator(
   userMessage,
   conversationHistory,
@@ -134,178 +151,181 @@ async function runOrchestrator(
   onUpdate,
   onFinalReply
 ) {
-  // Add user message to history
   conversationHistory.push({ role: "user", content: userMessage });
 
-  // ── Phase 1: Requirements gathering loop ──
-  // Keep chatting until we get SEARCH_READY signal
-  while (true) {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": claudeApiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
-      },
-      body: JSON.stringify({
-        model:    "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        system:   ORCHESTRATOR_PROMPT,
-        messages: conversationHistory
-      })
-    });
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": claudeApiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: SONNET_MODEL,
+      max_tokens: 1200,
+      system: ORCHESTRATOR_PROMPT,
+      messages: conversationHistory
+    })
+  });
 
-    const data = await response.json();
+  const data = await response.json();
 
-    if (data.error) {
-      onFinalReply("⚠️ Error: " + data.error.message);
-      return;
-    }
+  if (data.error) {
+    onFinalReply("⚠️ Error: " + data.error.message);
+    return;
+  }
 
-    const fullText = data.content
-      .filter(b => b.type === "text")
-      .map(b => b.text)
-      .join("");
+  const fullText = data.content
+    .filter(b => b.type === "text")
+    .map(b => b.text)
+    .join("");
 
-    conversationHistory.push({ role: "assistant", content: data.content });
+  conversationHistory.push({ role: "assistant", content: data.content });
 
-    // ── Check if requirements are complete ──
-    const searchReadyIndex = fullText.indexOf("SEARCH_READY:");
+  let parsed;
+  try {
+    parsed = parseSearchReady(fullText);
+  } catch {
+    parsed = null;
+  }
 
-    if (searchReadyIndex === -1) {
-      // Still gathering requirements — show message to user and wait
-      const displayText = fullText.trim();
-      onFinalReply(displayText);
-      return; // Wait for user's next message
-    }
+  if (!parsed) {
+    onFinalReply(fullText.trim());
+    return;
+  }
 
-    // ── Requirements complete — extract preferences ──
-    const displayText = fullText.substring(0, searchReadyIndex).trim();
-    if (displayText) {
-      onFinalReply(displayText, true); // Show summary to user
-    }
+  if (parsed.displayText) {
+    onFinalReply(parsed.displayText, true);
+  }
 
-    let preferences;
-    try {
-      const jsonStr = fullText.substring(
-        searchReadyIndex + "SEARCH_READY:".length
-      ).trim();
-      preferences = JSON.parse(jsonStr);
-    } catch {
+  let preferences;
+  try {
+    preferences = normalizePreferences(parsed.preferences);
+  } catch {
+    onFinalReply(
+      "⚠️ I had trouble reading your requirements. " +
+      "Could you confirm your travel details again?"
+    );
+    return;
+  }
+
+  if (!preferences.departure_airports.length) {
+    onFinalReply(
+      "⚠️ I need at least one departure airport (IATA code, e.g. AMS). " +
+      "Which city or airport will you fly from?"
+    );
+    return;
+  }
+
+  if (!serpApiKey) {
+    onFinalReply(
+      "⚠️ A SerpApi key is required for live flight search. " +
+      "Please paste your SerpApi key above and send your message again."
+    );
+    return;
+  }
+
+  onUpdate("🚀 All requirements collected! Starting search with specialist agents...");
+
+  try {
+    // Brief pause so Haiku TPM bucket can recover after orchestrator chat
+    onUpdate("⏳ Preparing specialist agents (avoiding API rate limits)...");
+    await sleep(8000);
+
+    const destinations = await runDestinationAgent(
+      preferences,
+      claudeApiKey,
+      onUpdate
+    );
+
+    if (!destinations || destinations.length === 0) {
       onFinalReply(
-        "⚠️ I had trouble reading your requirements. " +
-        "Could you confirm your travel details again?"
+        "I couldn't find destinations matching your criteria. " +
+        "Could you try with different preferences?"
       );
       return;
     }
 
-    // ── Phase 2: Search begins ──
-    onUpdate("🚀 All requirements collected! Starting search with specialist agents...");
+    const windows = generateTravelWindows(
+      preferences.travel_period,
+      preferences.trip_min_days,
+      preferences.trip_max_days
+    );
 
-    try {
-      // ── Step 1: Find matching destinations ──
-      await sleep(2000);
-      const destinations = await runDestinationAgent(
-        preferences,
-        claudeApiKey,
-        onUpdate
-      );
+    onUpdate(
+      `📅 Checking ${windows.length} travel windows across ` +
+      `${destinations.length} destinations...`
+    );
 
-      if (!destinations || destinations.length === 0) {
-        onFinalReply(
-          "I couldn't find destinations matching your criteria. " +
-          "Could you try with different preferences?"
-        );
-        return;
-      }
+    const flightResults = [];
+    const origin = preferences.departure_airports[0];
 
-      // ── Step 2: Generate travel windows ──
-      const windows = generateTravelWindows(
-        preferences.travel_period,
-        preferences.trip_min_days || 7,
-        preferences.trip_max_days || 10
-      );
+    for (const destination of destinations.slice(0, 2)) {
+      const destCode = normalizeAirportCode(destination.airport_code);
 
-      onUpdate(
-        `📅 Generated ${windows.length} travel windows to check ` +
-        `across ${destinations.length} destinations...`
-      );
+      for (const window of windows.slice(0, 3)) {
+        await sleep(3500);
 
-      // ── Step 3: Search flights for each destination × window ──
-      const flightResults = [];
-
-      for (const destination of destinations) {
-        for (const window of windows) {
-          await sleep(3000); // Rate limit protection
-
-          const result = await runFlightAgent(
-            {
-              origin:         preferences.departure_airports[0],
-              destination:    destination.airport_code,
-              departure_date: window.departure_date,
-              return_date:    window.return_date,
-              adults:         preferences.adults || 1,
-              children:       preferences.children || 0,
-              direct_only:    preferences.direct_only || false
-            },
-            serpApiKey,
-            claudeApiKey,
-            onUpdate
-          );
-
-          if (result.found) {
-            flightResults.push(result);
-          }
-        }
-      }
-
-      // ── Step 4: Get weather for destinations with flights ──
-      const weatherResults = [];
-      const destinationsWithFlights = [
-        ...new Set(flightResults.map(r => r.destination))
-      ];
-
-      for (const destCode of destinationsWithFlights) {
-        await sleep(2000);
-
-        const destInfo = destinations.find(
-          d => d.airport_code === destCode
-        );
-        const destName = destInfo ? destInfo.city : destCode;
-
-        const weather = await runWeatherAgent(
-          destName,
-          preferences.travel_period,
+        const result = await runFlightAgent(
+          {
+            origin,
+            destination: destCode,
+            destination_city: destination.city,
+            departure_date: window.departure_date,
+            return_date: window.return_date,
+            adults: preferences.adults,
+            children: preferences.children,
+            direct_only: preferences.direct_only
+          },
+          serpApiKey,
           claudeApiKey,
           onUpdate
         );
 
-        weatherResults.push(weather);
+        if (result.found) {
+          flightResults.push(result);
+        }
       }
+    }
 
-      // ── Step 5: Get final recommendation ──
-      await sleep(2000);
+    const weatherResults = [];
+    const seenCities = new Set();
 
-      const recommendation = await runRecommendationAgent(
-        flightResults,
-        weatherResults,
-        preferences,
+    for (const result of flightResults) {
+      const cityKey = (result.destination_city || result.destination).toLowerCase();
+      if (seenCities.has(cityKey)) continue;
+      seenCities.add(cityKey);
+
+      await sleep(5000);
+
+      const weather = await runWeatherAgent(
+        result.destination_city || result.destination,
+        preferences.travel_period,
         claudeApiKey,
         onUpdate
       );
 
-      // ── Show final recommendation to user ──
-      onFinalReply(recommendation);
-
-    } catch (error) {
-      console.error("Orchestrator error:", error);
-      onFinalReply(
-        "⚠️ Something went wrong during the search: " + error.message +
-        "\n\nPlease try again."
-      );
+      weather.airport_code = result.destination;
+      weatherResults.push(weather);
     }
 
-    return; // Search complete
+    await sleep(1500);
+
+    const recommendation = await runRecommendationAgent(
+      flightResults,
+      weatherResults,
+      preferences,
+      claudeApiKey,
+      onUpdate
+    );
+
+    onFinalReply(recommendation);
+  } catch (error) {
+    console.error("Orchestrator error:", error);
+    onFinalReply(
+      "⚠️ Something went wrong during the search: " + error.message +
+      "\n\nPlease check your API keys and try again."
+    );
   }
 }
