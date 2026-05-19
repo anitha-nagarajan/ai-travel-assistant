@@ -10,12 +10,42 @@ Format:
 💡 MY RECOMMENDATION
 [2-3 paragraphs]
 
-Rules: only options with flights found; EUR prices; warm and clear.`;
+Rules:
+- Only use flight options from the data (each has is_direct flag).
+- EUR prices; warm and clear.
+- If user_preferences.direct_only is true: ONLY recommend options where is_direct is true.
+  Do NOT mention "via", layovers, connections, or connecting airports.
+  Label flights as "direct" or "nonstop".`;
+
+function filterFlightResultsForPreferences(flightResults, preferences) {
+  return flightResults
+    .map((result) => {
+      let options = result.options || [];
+      if (preferences.direct_only) {
+        options = options.filter((o) => o.is_direct === true);
+      }
+      return { ...result, options };
+    })
+    .filter((r) => r.found && r.options.length > 0);
+}
 
 export async function buildRecommendation(flightResults, weatherResults, preferences) {
-  const successful = flightResults.filter((r) => r.found && r.options?.length > 0);
+  const successful = filterFlightResultsForPreferences(flightResults, preferences);
 
   if (successful.length === 0) {
+    if (preferences.direct_only) {
+      return `I searched all destinations and date windows but could not find **direct (nonstop)** flights matching your criteria.
+
+This can happen when:
+- No airline flies nonstop on those dates from your departure airport
+- The route requires at least one connection
+
+💡 Suggestions:
+- Try different travel dates within your holiday period
+- Consider a nearby departure airport with nonstop routes
+- Or tell me you are open to connections and I can search again`;
+    }
+
     return `I searched all destinations and date windows but could not find available flights.
 
 Try allowing connections, widening your travel dates, or choosing a different departure airport.`;
@@ -37,6 +67,10 @@ Try allowing connections, widening your travel dates, or choosing a different de
     };
   });
 
+  const directOnlyNote = preferences.direct_only
+    ? "\n\nCRITICAL: User requires DIRECT FLIGHTS ONLY. Every flight in RESULTS has is_direct: true. Present them as nonstop. Do not invent connecting routes.\n"
+    : "";
+
   const data = await callClaude({
     model: config.sonnetModel,
     max_tokens: 2000,
@@ -45,8 +79,9 @@ Try allowing connections, widening your travel dates, or choosing a different de
       {
         role: "user",
         content:
-          `USER PREFERENCES:\n${JSON.stringify(preferences, null, 2)}\n\n` +
-          `RESULTS:\n${JSON.stringify(summary, null, 2)}`
+          `USER PREFERENCES:\n${JSON.stringify(preferences, null, 2)}\n` +
+          directOnlyNote +
+          `\nRESULTS:\n${JSON.stringify(summary, null, 2)}`
       }
     ]
   });

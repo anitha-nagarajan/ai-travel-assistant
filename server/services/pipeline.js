@@ -75,19 +75,39 @@ export async function runSearchPipeline(preferences, emit) {
 
         if (result.found) {
           const best = result.options[0];
-          emit({
-            type: "progress",
-            agent: "flight",
-            message:
-              `✅ ${destCode}: €${best.price_eur}/person — ${best.airline}`,
-            level: "done"
-          });
-          flightResults.push(result);
+          const directLabel =
+            preferences.direct_only
+              ? best.is_direct
+                ? " — direct"
+                : " — not direct (skipped)"
+              : best.is_direct
+                ? " — direct"
+                : ` — ${best.stops} stop(s)`;
+
+          if (preferences.direct_only && !best.is_direct) {
+            emit({
+              type: "progress",
+              agent: "flight",
+              message: `⚠️ ${origin} → ${destCode}: only connecting flights found (skipped)`,
+              level: "warn"
+            });
+          } else {
+            emit({
+              type: "progress",
+              agent: "flight",
+              message:
+                `✅ ${destCode}: €${best.price_eur}/person — ${best.airline}${directLabel}`,
+              level: "done"
+            });
+            flightResults.push(result);
+          }
         } else {
           emit({
             type: "progress",
             agent: "flight",
-            message: `⚠️ No flights for ${origin} → ${destCode}`,
+            message: preferences.direct_only
+              ? `⚠️ No direct flights for ${origin} → ${destCode}`
+              : `⚠️ No flights for ${origin} → ${destCode}`,
             level: "warn"
           });
         }

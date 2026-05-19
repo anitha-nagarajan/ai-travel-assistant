@@ -24,7 +24,7 @@ export async function findDestinations(preferences, onRetry) {
   const query =
     `Departure: ${preferences.departure_airports.join("/")}. ` +
     `Max flight ${preferences.max_flying_hours}h. ` +
-    `Direct only: ${preferences.direct_only}. ` +
+    `Direct nonstop flights: ${preferences.direct_only ? "REQUIRED" : "optional"}. ` +
     `Region: ${preferences.continent_preference || "any"}. ` +
     `Climate: ${preferences.climate_preference || "pleasant"}. ` +
     `Period: ${preferences.travel_period}. ` +
